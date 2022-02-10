@@ -4,48 +4,30 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, Clone, PartialEq)]
-pub enum AccountTag {
-    Uninitialized,
-    Mint,
-    TokenAccount,
-}
-
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
-pub struct Mint {
-    pub tag: AccountTag,
+pub struct Token {
     pub authority: Pubkey,
     pub supply: u64,
 }
 
-impl Mint {
+impl Token {
     pub fn load_unchecked(ai: &AccountInfo) -> Result<Self, ProgramError> {
         Ok(Self::try_from_slice(&ai.data.borrow())?)
     }
-
-    fn validate(&self) -> ProgramResult {
-        if self.tag != AccountTag::Mint {
-            return Err(ProgramError::InvalidAccountData);
-        }
-        Ok(())
+    pub fn save(&self, ai: &AccountInfo) -> ProgramResult {
+        Ok(self.serialize(&mut *ai.data.borrow_mut())?)
     }
 
     pub fn load(ai: &AccountInfo) -> Result<Self, ProgramError> {
-        let mint = Self::try_from_slice(&ai.data.borrow())?;
-        mint.validate()?;
-        Ok(mint)
-    }
-
-    pub fn save(&self, ai: &AccountInfo) -> ProgramResult {
-        Ok(self.serialize(&mut *ai.data.borrow_mut())?)
+        let token = Self::try_from_slice(&ai.data.borrow())?;
+        Ok(token)
     }
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct TokenAccount {
-    pub tag: AccountTag,
     pub owner: Pubkey,
-    pub mint: Pubkey,
+    pub token: Pubkey,
     pub amount: u64,
 }
 
@@ -53,21 +35,13 @@ impl TokenAccount {
     pub fn load_unchecked(ai: &AccountInfo) -> Result<Self, ProgramError> {
         Ok(Self::try_from_slice(&ai.data.borrow())?)
     }
-
-    fn validate(&self) -> ProgramResult {
-        if self.tag != AccountTag::TokenAccount {
-            return Err(ProgramError::InvalidAccountData);
-        }
-        Ok(())
+    pub fn save(&self, ai: &AccountInfo) -> ProgramResult {
+        Ok(self.serialize(&mut *ai.data.borrow_mut())?)
     }
 
     pub fn load(ai: &AccountInfo) -> Result<Self, ProgramError> {
         let account = Self::try_from_slice(&ai.data.borrow())?;
-        account.validate()?;
         Ok(account)
     }
 
-    pub fn save(&self, ai: &AccountInfo) -> ProgramResult {
-        Ok(self.serialize(&mut *ai.data.borrow_mut())?)
-    }
 }

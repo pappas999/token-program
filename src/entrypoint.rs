@@ -1,5 +1,4 @@
 use crate::processor::Processor;
-//use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, msg, pubkey::Pubkey};
 
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -8,12 +7,6 @@ use solana_program::{
     msg,
     pubkey::Pubkey,
 };
-
-
-//#[cfg(not(feature = "no-entrypoint"))]
-//use solana_program::entrypoint;
-//#[cfg(not(feature = "no-entrypoint"))]
-//entrypoint!(process_instruction);
 
 // Declare and export the program's entrypoint
 entrypoint!(process_instruction);

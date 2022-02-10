@@ -20,20 +20,17 @@ import {
     // Check if the program has been deployed
     await checkProgram();
 
-    // Say hello to an account
+    // Create the master token
     await createToken();
 
-    // Say hello to an account
+    // Create two accounts to mint and receive tokens
     await createTokenAccounts();
 
-    // Say hello to an account
+    // mint some tokens to one of the two accounts
     await mint();
 
-    // Say hello to an account
+    // Send some tokens from the account that recieved the mint to the second account
     await transfer();
-
-    // Find out how many times that account has been greeted
-    //await getTokenBalance();
 
     console.log('Success');
   }

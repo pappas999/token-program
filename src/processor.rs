@@ -8,16 +8,7 @@ use solana_program::{
 };
 
 use crate::instruction::TokenInstruction;
-use crate::state::{Mint, AccountTag, TokenAccount};
-
-pub fn assert_with_msg(statement: bool, err: ProgramError, msg: &str) -> ProgramResult {
-    if !statement {
-        msg!(msg);
-        Err(err)
-    } else {
-        Ok(())
-    }
-}
+use crate::state::{Token, TokenAccount};
 
 pub struct Processor {}
 
@@ -30,97 +21,82 @@ impl Processor {
         let instruction = TokenInstruction::try_from_slice(instruction_data)
             .map_err(|_| ProgramError::InvalidInstructionData)?;
         let accounts_iter = &mut accounts.iter();
-        //println!("", s);
-        msg!("Instruction: Mint {:?}",instruction);
+        msg!("Instruction: {:?}",instruction);
         match instruction {
             TokenInstruction::CreateToken => {
-                let mint_ai = next_account_info(accounts_iter)?;
-                let mint_authority = next_account_info(accounts_iter)?;
-                let mut mint = Mint::load_unchecked(mint_ai)?;
+                msg!("Instruction: Create Token");
 
-                assert_with_msg(
-                    mint_authority.is_signer,
-                    ProgramError::MissingRequiredSignature,
-                    "Mint Authority must sign",
-                )?;
-                mint.tag = AccountTag::Mint;
-                mint.authority = *mint_authority.key;
-                mint.supply = 0;
-                mint.save(mint_ai)?
+                //get account info for master token account
+                let token_master_account = next_account_info(accounts_iter)?;
+                let token_authority = next_account_info(accounts_iter)?;
+                let mut token = Token::load_unchecked(token_master_account)?;
+
+                //set default values and save master token account
+                token.authority = *token_authority.key;
+                token.supply = 0;
+                token.save(token_master_account)?
             }
             TokenInstruction::CreateTokenAccount => {
-                let token_account_ai = next_account_info(accounts_iter)?;
-                let mint_ai = next_account_info(accounts_iter)?;
-                let mint = Mint::load(mint_ai)?;
+                msg!("Instruction: Create Token Account");
+
+                //get account info for master token account and token account to be created
+                let token_account_acct = next_account_info(accounts_iter)?;
+                let token_master_account = next_account_info(accounts_iter)?;
+                let token = Token::load(token_master_account)?;
                 let owner = next_account_info(accounts_iter)?;
-                let mut token_account = TokenAccount::load_unchecked(token_account_ai)?;
-                // TODO
-                token_account.tag = AccountTag::TokenAccount;
+                let mut token_account = TokenAccount::load_unchecked(token_account_acct)?;
+
+                //set default values and save token account
                 token_account.owner = *owner.key;
-                token_account.mint = *mint_ai.key;
+                token_account.token = *token_master_account.key;
                 token_account.amount = 0;
-                token_account.save(token_account_ai)?
+                token_account.save(token_account_acct)?
             }
             TokenInstruction::Mint { amount } => {
                 msg!("Instruction: Mint");
-                let token_account_ai = next_account_info(accounts_iter)?;
-                let mint_ai = next_account_info(accounts_iter)?;
-                let mint_authority = next_account_info(accounts_iter)?;
-                let mut token_account = TokenAccount::load(token_account_ai)?;
-                let mut mint = Mint::load(mint_ai)?;
-                assert_with_msg(
-                    mint_authority.is_signer,
-                    ProgramError::MissingRequiredSignature,
-                    "Mint Authority must sign",
-                )?;
-                assert_with_msg(
-                    mint.authority == *mint_authority.key,
-                    ProgramError::MissingRequiredSignature,
-                    "Mint Authority mismatch",
-                )?;
-                // TODO
-                // unsafe
-                // amount = u64::max_value();
-                mint.supply += amount;
+
+                //get account info for master token account and token account to mint to
+                let token_account_acct = next_account_info(accounts_iter)?;
+                let token_master_account = next_account_info(accounts_iter)?;
+                let mut token_account = TokenAccount::load(token_account_acct)?;
+                let mut token = Token::load(token_master_account)?;
+
+                //basic validation, ensure its the master token authority trying to mint
+                let token_authority = next_account_info(accounts_iter)?;
+                if !token_authority.is_signer {
+                    msg!("Only the token owner can mint tokens");
+                    return Err(ProgramError::MissingRequiredSignature);
+                }
+
+                //update total supply of the master token, and update balance of token account that received the mint
+                token.supply += amount;
                 token_account.amount += amount;
 
-                token_account.save(token_account_ai)?;
-                mint.save(mint_ai)?;
+                //save updated contents of both accounts
+                token_account.save(token_account_acct)?;
+                token.save(token_master_account)?;
             }
             TokenInstruction::Transfer { amount } => {
                 msg!("Instruction: Transfer");
-                let src_token_account_ai = next_account_info(accounts_iter)?;
-                let dst_token_account_ai = next_account_info(accounts_iter)?;
+
+                //get account info for from and to token accounts, as well as master token account
+                let from_token_acct = next_account_info(accounts_iter)?;
+                let to_token_acct = next_account_info(accounts_iter)?;
                 let owner = next_account_info(accounts_iter)?;
-                msg!("Instruction 1");
-                let mut src_token_account = TokenAccount::load(src_token_account_ai)?;
-                msg!("Instruction 2");
-                let mut dst_token_account = TokenAccount::load(dst_token_account_ai)?;
-                assert_with_msg(
-                    owner.is_signer,
-                    ProgramError::MissingRequiredSignature,
-                    "Token owner must sign",
-                )?;
-                assert_with_msg(
-                    src_token_account.owner == *owner.key,
-                    ProgramError::MissingRequiredSignature,
-                    "Token owner mismatch",
-                )?;
-                assert_with_msg(
-                    src_token_account.amount >= amount,
-                    ProgramError::InvalidAccountData,
-                    "Attempting to transfer more than account balance",
-                )?;
-                assert_with_msg(
-                    src_token_account.mint == dst_token_account.mint,
-                    ProgramError::InvalidAccountData,
-                    "Token account mints do not match",
-                )?;
-                msg!("Instruction 3");
+                let mut src_token_account = TokenAccount::load(from_token_acct)?;
+                let mut dst_token_account = TokenAccount::load(to_token_acct)?;
+
+                //basic validation, ensure sender has enough funds
+                if src_token_account.amount <= amount {
+                    msg!("Not enough tokens to transfer");
+                    return Err(ProgramError::InsufficientFunds);
+                }
+
+                //update values in from and to accounts, then save new contents of both accounts
                 src_token_account.amount -= amount;
                 dst_token_account.amount += amount;
-                src_token_account.save(src_token_account_ai)?;
-                dst_token_account.save(dst_token_account_ai)?;
+                src_token_account.save(from_token_acct)?;
+                dst_token_account.save(to_token_acct)?;
             }
         }
         Ok(())
