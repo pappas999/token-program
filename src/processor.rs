@@ -92,6 +92,18 @@ impl Processor {
                     return Err(ProgramError::InsufficientFunds);
                 }
 
+                //ensure the owner of the from account is the one signing the transaction
+                if !owner.is_signer {
+                    msg!("Not the token owner signing the transaction");
+                    return Err(ProgramError::MissingRequiredSignature);
+                }
+
+                //ensure the owner passed in is the actual owner of the token account
+                if !(src_token_account.owner == *owner.key) {
+                    msg!("Not the token account owner signing the transaction");
+                    return Err(ProgramError::MissingRequiredSignature);
+                }
+
                 //update values in from and to accounts, then save new contents of both accounts
                 src_token_account.amount -= amount;
                 dst_token_account.amount += amount;
