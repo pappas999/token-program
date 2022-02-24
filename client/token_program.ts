@@ -57,7 +57,9 @@ const PROGRAM_SO_PATH = path.join(PROGRAM_PATH, 'token_program.so');
  */
 const PROGRAM_KEYPAIR_PATH = path.join(PROGRAM_PATH, 'token_program-keypair.json');
 
-const TOKEN_NAME = 'GLASS COIN'
+const TOKEN_NAME = 'GLASS_COIN'
+const FROM_ACCT_SEED='FROM_ACCT_SEED'
+const TO_ACCT_SEED='TO_ACCT_SEED'
 
 /**
  * Borsh class and schema definition for accounts
@@ -79,6 +81,21 @@ const TOKEN_NAME = 'GLASS COIN'
             fields: [
                 ['instruction', 'u8'],
                 ['amount', 'u64']]
+        }]]);
+}
+
+class TokenInstructionNoAmount {
+    instruction = 0
+    constructor(fields: { instruction: number } | undefined = undefined) {
+        if (fields) {
+            this.instruction = fields.instruction;
+        }
+    }
+    static schema = new Map([[TokenInstructionNoAmount,
+        {
+            kind: 'struct',
+            fields: [
+                ['instruction', 'u8']]
         }]]);
 }
 
@@ -226,6 +243,7 @@ export async function createToken(): Promise<void> {
         TOKEN_NAME,
         programId,
     );
+
     const masterTokenAccount = await connection.getAccountInfo(tokenPubkey);
 
     if (masterTokenAccount === null) {
@@ -234,7 +252,7 @@ export async function createToken(): Promise<void> {
         console.log(
             'Creating account',
             tokenPubkey.toBase58(),
-            'to say hello to',
+            'for our new token',
         );
         const lamports = await connection.getMinimumBalanceForRentExemption(
             NEW_TOKEN_SIZE,
@@ -258,8 +276,8 @@ export async function createToken(): Promise<void> {
 
         // Create new master token
         //first we serialize the name data.
-        let tokenInstruction = new TokenInstruction({ "instruction": 0 ,"amount":0}) //instruction is 0 (create token)
-        let data = borsh.serialize(TokenInstruction.schema, tokenInstruction);
+        let tokenInstruction = new TokenInstructionNoAmount({ "instruction": 0}) //instruction is 0 (create token)
+        let data = borsh.serialize(TokenInstructionNoAmount.schema, tokenInstruction);
         let dataBuffer = Buffer.from(data)
 
         //now we generate the instruction
@@ -338,13 +356,11 @@ export async function createNewKeyPair(seed: string): Promise<PublicKey> {
 
 
 export async function createTokenAccounts(): Promise<void> {
-    const FROM_ACCT_SEED='FROM_ACCT_SEED'
-    const TO_ACCT_SEED='TO_ACCT_SEED'
 
     //first we need to create two public keys for the from and to accounts
     console.log('Creating from and to accounts for token ', tokenPubkey.toBase58());
-    tokenFromAccountPubkey = await createNewKeyPair('FROM_ACCT_SEED')
-    tokenToAccountPubkey = await createNewKeyPair('TO_ACCT_SEED')
+    tokenFromAccountPubkey = await createNewKeyPair(FROM_ACCT_SEED)
+    tokenToAccountPubkey = await createNewKeyPair(TO_ACCT_SEED)
 
     console.log('-----------------------------------------------------------------------------------------------------------------')
 }
@@ -352,8 +368,8 @@ export async function createTokenAccounts(): Promise<void> {
 export async function createTokenAccount(tokenKey: PublicKey): Promise<void> {
 
     //first we serialize the instruction data
-    let tokenInstruction = new TokenInstruction({ "instruction": 1 ,"amount":0 })  //1 = create token account
-    let data = borsh.serialize(TokenInstruction.schema, tokenInstruction);
+    let tokenInstruction = new TokenInstructionNoAmount({ "instruction": 1 })  //1 = create token account
+    let data = borsh.serialize(TokenInstructionNoAmount.schema, tokenInstruction);
     let dataBuffer = Buffer.from(data)
 
     //now we build up the instruction
@@ -449,8 +465,3 @@ export async function getAccountTokenInfo(account: PublicKey): Promise<void> {
     const accountInfo = borsh.deserializeUnchecked(TokenAccount.schema, TokenAccount, data)
     console.log('account info for ', account.toBase58() + ': token address:', new PublicKey(accountInfo.token).toBase58(), ', balance:', accountInfo.amount.toString())
 }
-
-
-
-
-

@@ -1,4 +1,4 @@
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::{BorshDeserialize};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -25,7 +25,6 @@ impl Processor {
         match instruction {
             TokenInstruction::CreateToken => {
                 msg!("Instruction: Create Token");
-
                 //get account info for master token account
                 let token_master_account = next_account_info(accounts_iter)?;
                 let token_authority = next_account_info(accounts_iter)?;
@@ -35,14 +34,14 @@ impl Processor {
                 token.authority = *token_authority.key;
                 token.supply = 0;
                 token.save(token_master_account)?
+
+
             }
             TokenInstruction::CreateTokenAccount => {
                 msg!("Instruction: Create Token Account");
-
                 //get account info for master token account and token account to be created
                 let token_account_acct = next_account_info(accounts_iter)?;
                 let token_master_account = next_account_info(accounts_iter)?;
-                let token = Token::load(token_master_account)?;
                 let owner = next_account_info(accounts_iter)?;
                 let mut token_account = TokenAccount::load_unchecked(token_account_acct)?;
 
@@ -51,34 +50,37 @@ impl Processor {
                 token_account.token = *token_master_account.key;
                 token_account.amount = 0;
                 token_account.save(token_account_acct)?
+
+
+
             }
             TokenInstruction::Mint { amount } => {
                 msg!("Instruction: Mint");
+                 //get account info for master token account and token account to mint to
+                 let token_account_acct = next_account_info(accounts_iter)?;
+                 let token_master_account = next_account_info(accounts_iter)?;
+                 let mut token_account = TokenAccount::load(token_account_acct)?;
+                 let mut token = Token::load(token_master_account)?;
 
-                //get account info for master token account and token account to mint to
-                let token_account_acct = next_account_info(accounts_iter)?;
-                let token_master_account = next_account_info(accounts_iter)?;
-                let mut token_account = TokenAccount::load(token_account_acct)?;
-                let mut token = Token::load(token_master_account)?;
+                 //basic validation, ensure its the master token authority trying to mint
+                 let token_authority = next_account_info(accounts_iter)?;
+                 if !token_authority.is_signer {
+                     msg!("Only the token owner can mint tokens");
+                     return Err(ProgramError::MissingRequiredSignature);
+                 }
 
-                //basic validation, ensure its the master token authority trying to mint
-                let token_authority = next_account_info(accounts_iter)?;
-                if !token_authority.is_signer {
-                    msg!("Only the token owner can mint tokens");
-                    return Err(ProgramError::MissingRequiredSignature);
-                }
+                 //update total supply of the master token, and update balance of token account that received the mint
+                 token.supply += amount;
+                 token_account.amount += amount;
 
-                //update total supply of the master token, and update balance of token account that received the mint
-                token.supply += amount;
-                token_account.amount += amount;
+                 //save updated contents of both accounts
+                 token_account.save(token_account_acct)?;
+                 token.save(token_master_account)?;
 
-                //save updated contents of both accounts
-                token_account.save(token_account_acct)?;
-                token.save(token_master_account)?;
+
             }
             TokenInstruction::Transfer { amount } => {
                 msg!("Instruction: Transfer");
-
                 //get account info for from and to token accounts, as well as master token account
                 let from_token_acct = next_account_info(accounts_iter)?;
                 let to_token_acct = next_account_info(accounts_iter)?;
@@ -109,6 +111,7 @@ impl Processor {
                 dst_token_account.amount += amount;
                 src_token_account.save(from_token_acct)?;
                 dst_token_account.save(to_token_acct)?;
+
             }
         }
         Ok(())

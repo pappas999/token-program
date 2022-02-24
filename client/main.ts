@@ -6,7 +6,7 @@ import {
     createTokenAccounts,
     mint,
     transfer
-  } from './token-program';
+  } from './token_program';
 
   async function main() {
     console.log("Let's create a token...");
